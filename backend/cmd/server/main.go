@@ -63,6 +63,17 @@ func main() {
 	router := gin.Default()
 	router.Use(middleware.CORSMiddleware(cfg.CORSOrigin))
 
+	// Root welcome endpoint
+	router.GET("/", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"service":   "PulsePoll Live Polling Backend API",
+			"status":    "online",
+			"health":    "/health",
+			"websocket": "/ws/polls/:id",
+			"timestamp": time.Now().UTC(),
+		})
+	})
+
 	// Health check endpoint
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
