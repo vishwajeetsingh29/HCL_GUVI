@@ -80,9 +80,8 @@ export function Navbar({ onOpenAuth, onOpenCreatePoll, currentView, navigateTo }
 
               <button
                 onClick={() => onOpenAuth('signup')}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-600/20 transition-all hover:scale-[1.02]"
+                className="px-5 py-2 text-sm font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-600/20 transition-all hover:scale-[1.02]"
               >
-                <Sparkles className="w-4 h-4" />
                 <span>Get Started</span>
               </button>
             </div>
