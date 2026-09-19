@@ -40,8 +40,8 @@ func (h *AuthHandler) Signup(c *gin.Context) {
 	req.Name = strings.TrimSpace(req.Name)
 	req.Email = strings.ToLower(strings.TrimSpace(req.Email))
 
-	if len(req.Name) < 2 || len(req.Name) > 100 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Name must be between 2 and 100 characters"})
+	if len(req.Name) < 1 || len(req.Name) > 100 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Name must be between 1 and 100 characters"})
 		return
 	}
 
