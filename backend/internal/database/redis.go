@@ -13,6 +13,12 @@ import (
 func ConnectRedis(addr, password string) (*redis.Client, error) {
 	var rdb *redis.Client
 
+	// Sanitize in case user accidentally copied quotes or REDIS_URL=
+	addr = strings.TrimSpace(addr)
+	addr = strings.TrimPrefix(addr, "REDIS_URL=")
+	addr = strings.Trim(addr, "\"")
+	addr = strings.Trim(addr, "'")
+
 	if strings.HasPrefix(addr, "redis://") || strings.HasPrefix(addr, "rediss://") {
 		opt, err := redis.ParseURL(addr)
 		if err != nil {
