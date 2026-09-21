@@ -20,11 +20,11 @@ flowchart TD
     end
 
     subgraph BackendAPI ["Backend Service (/backend)"]
-        GinServer["Go Gin HTTP Server (:8080)"]
+        NodeServer["Node.js Express Server (:8080)"]
         AuthMiddleware["JWT Authentication Middleware"]
         PollController["Poll & Vote Controllers"]
-        WSHub["WebSocket Hub (gorilla/websocket)"]
-        RedisSub["Redis Pub/Sub Subscriber Goroutine"]
+        WSHub["WebSocket Hub (ws library)"]
+        RedisSub["Redis Pub/Sub Subscriber Client"]
     end
 
     subgraph StorageLayer ["Data & Message Brokering"]
@@ -35,11 +35,11 @@ flowchart TD
     Creator -->|"Manage Polls (JWT)"| ViteSPA
     Audience -->|"Cast Votes (Public /vote/:id)"| ViteSPA
     ViteSPA --> NginxProxy
-    NginxProxy -->|"REST API /api/*"| GinServer
+    NginxProxy -->|"REST API /api/*"| NodeServer
     NginxProxy -->|"WebSocket /ws/*"| WSHub
 
-    GinServer --> AuthMiddleware
-    GinServer --> PollController
+    NodeServer --> AuthMiddleware
+    NodeServer --> PollController
 
     PollController -->|"Insert & Query"| MongoDB
     PollController -->|"Atomic $inc vote_count"| MongoDB
@@ -64,10 +64,10 @@ flowchart TD
 - **Decoupled Fan-Out**: Casting a vote is an HTTP transaction, while receiving updates is an asynchronous WebSocket event. By publishing vote events to Redis channel `channel:poll_updates`, the backend separates vote ingestion from WebSocket broadcast processing.
 - **Horizontal Scalability**: In a multi-replica container deployment, clients can connect their WebSockets to different backend pods. When any pod records a vote, Redis broadcasts the event to all pods, which in turn push the update to their connected clients without requiring sticky sessions.
 
-### 3. Go & Gin Framework for High-Performance Concurrency
-- **Goroutine-Driven WebSocket Hub**: Go's lightweight green threads (goroutines) enable the server to hold thousands of concurrent WebSocket connections with minimal RAM usage.
-- **Gorilla WebSocket**: Provides robust connection lifecycle management, ping/pong heartbeats to prune dead TCP sockets, and buffered non-blocking channel sends.
-- **Strict Server-Side Validation**: All incoming requests are strictly validated prior to touching database operations (e.g. minimum/maximum string lengths, email parsing, unique poll options, existence of option IDs).
+### 3. Node.js & Express for Real-Time Event-Driven Concurrency
+- **Event-Driven WebSocket Hub**: Node.js's asynchronous, non-blocking event loop handles thousands of concurrent WebSocket connections natively with low latency.
+- **Robust WebSocket Hub (`ws`)**: Provides reliable connection lifecycle management, ping/pong heartbeats to prune dead sockets, and instant message broadcast across client sets.
+- **Strict Server-Side Validation**: All incoming requests are strictly validated prior to touching database operations (e.g. minimum/maximum string lengths, email regex parsing, unique poll options, existence of option IDs).
 
 ### 4. React 18 + Vite + Tailwind CSS for Isolated UI
 - **Strict Separation of Concerns**: All frontend code lives strictly inside `/frontend` with its own build pipeline, dependencies, and environment configurations.
@@ -79,36 +79,31 @@ flowchart TD
 ## Directory Structure
 
 ```text
-guvi/
-├── backend/                        # Person 2: Go Gin API & WebSocket service
-│   ├── cmd/
-│   │   └── server/
-│   │       └── main.go             # Application entrypoint & HTTP server
-│   ├── internal/
-│   │   ├── broker/
-│   │   │   └── redis_pubsub.go     # Redis publisher & subscriber routines
+pulsepoll/
+├── backend/                        # Person 2: Node.js Express API & WebSocket service
+│   ├── src/
 │   │   ├── config/
-│   │   │   └── config.go           # Environment variable loader
+│   │   │   └── index.js            # Environment variable loader & defaults
 │   │   ├── database/
-│   │   │   ├── mongo.go            # MongoDB client & collection indexes
-│   │   │   └── redis.go            # Redis client connection
-│   │   ├── handlers/
-│   │   │   ├── auth_handler.go     # Signup, Login, Me endpoints
-│   │   │   ├── poll_handler.go     # Poll CRUD, Vote casting with validation
-│   │   │   └── ws_handler.go       # WebSocket upgrade & room dispatcher
+│   │   │   ├── mongo.js            # Mongoose connection & health checks
+│   │   │   └── redis.js            # Redis publisher & subscriber clients
+│   │   ├── controllers/
+│   │   │   ├── authController.js   # Signup, Login, Me endpoints
+│   │   │   └── pollController.js   # Poll CRUD, Vote casting with validation
 │   │   ├── middleware/
-│   │   │   ├── auth_middleware.go  # JWT Bearer token authentication
-│   │   │   └── cors_middleware.go  # Cross-origin resource sharing
+│   │   │   └── auth.js             # JWT Bearer token authentication
 │   │   ├── models/
-│   │   │   ├── poll.go             # Poll & Option structs & validation logic
-│   │   │   ├── user.go             # User model & bcrypt password hashing
-│   │   │   └── vote.go             # Vote schema model
-│   │   └── websocket/
-│   │       ├── client.go           # WebSocket client connection pump & ping/pong
-│   │       └── hub.go              # WebSocket room management & broadcasting
-│   ├── Dockerfile                  # Multi-stage production Go build
+│   │   │   ├── Poll.js             # Poll & Option schemas & validation logic
+│   │   │   ├── User.js             # User model & bcrypt password hashing
+│   │   │   └── Vote.js             # Vote schema model & unique compound index
+│   │   ├── websocket/
+│   │   │   └── hub.js              # WebSocket room management & Redis broadcasting
+│   │   ├── routes/
+│   │   │   └── api.js              # Express API route bindings
+│   │   └── server.js               # Application bootstrap & HTTP/WS server
+│   ├── Dockerfile                  # Multi-stage production Node.js build
 │   ├── .dockerignore
-│   └── go.mod
+│   └── package.json
 │
 ├── frontend/                       # Person 1: React & UI Application
 │   ├── src/
@@ -149,7 +144,7 @@ guvi/
 
 ## Quick Start with Docker Compose
 
-The easiest way to run the entire stack locally is using Docker Compose. It orchestrates MongoDB, Redis, the Go backend, and the React frontend with full networking and health checks.
+The easiest way to run the entire stack locally is using Docker Compose. It orchestrates MongoDB, Redis, the Node.js backend, and the React frontend with full networking and health checks.
 
 ### Prerequisites
 - Docker Engine `24.0+`
@@ -163,7 +158,7 @@ docker compose up --build
 Docker Compose will:
 1. Initialize **MongoDB 7.0** and execute `mongodb-init/init-mongo.js` to create indexes.
 2. Initialize **Redis 7.2** with Pub/Sub buffer optimizations.
-3. Compile the Go backend binary in a multi-stage Docker build and wait for MongoDB and Redis health checks to pass.
+3. Build the Node.js backend in a multi-stage Docker build and wait for MongoDB and Redis health checks to pass.
 4. Build the React frontend production bundle and serve it via Nginx on port `3000`.
 
 ### 2. Access the Application
@@ -187,15 +182,15 @@ mongod --dbpath ./data/db
 redis-server ./redis/redis.conf
 ```
 
-### 2. Start Go Backend
+### 2. Start Node.js Backend
 ```bash
 cd backend
 
-# Download dependencies
-go mod tidy
+# Install dependencies
+npm install
 
-# Run server
-go run ./cmd/server
+# Run server in watch/dev mode
+npm run dev
 # Server will listen on http://localhost:8080
 ```
 
@@ -353,5 +348,4 @@ Whenever any voter casts a vote, Redis Pub/Sub dispatches this frame to all conn
 ---
 
 ## Production Deployment
-See [DEPLOYMENT.md](file:///Users/vishwajeetsingh/Desktop/guvi/DEPLOYMENT.md) for step-by-step instructions on deploying the full stack to publicly reachable URLs using cloud providers (Render, Railway, Fly.io, or VPS with Automated Let's Encrypt SSL).
-# HCL_GUVI
+See [DEPLOYMENT.md](DEPLOYMENT.md) for step-by-step instructions on deploying the full stack to publicly reachable URLs using cloud providers (Render, Railway, Fly.io, or VPS with Automated Let's Encrypt SSL).

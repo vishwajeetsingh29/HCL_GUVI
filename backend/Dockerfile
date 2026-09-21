@@ -1,35 +1,31 @@
-# Build stage
-FROM golang:1.23-alpine AS builder
+# Production Node.js Dockerfile for Polling Backend Service
+# Stage 1: Install production dependencies
+FROM node:20-alpine AS deps
 
 WORKDIR /app
 
-# Install git and ca-certificates
-RUN apk add --no-cache git ca-certificates
+# Copy package descriptors
+COPY package*.json ./
 
-# Copy go mod file
-COPY go.mod ./
+# Install only production dependencies
+RUN npm ci --only=production
 
-# Copy application source
-COPY . .
-
-# Download dependencies and generate complete go.sum checksums
-RUN go mod tidy
-
-# Build statically compiled binary
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o /app/polling-backend ./cmd/server
-
-# Final production runtime stage
-FROM alpine:3.20
+# Stage 2: Minimal runtime image
+FROM node:20-alpine AS runner
 
 WORKDIR /app
 
-RUN apk add --no-cache ca-certificates tzdata
+ENV NODE_ENV=production \
+    PORT=8080
 
-COPY --from=builder /app/polling-backend /app/polling-backend
+# Run container as non-root user for security
+USER node
+
+# Copy dependencies and application source
+COPY --chown=node:node --from=deps /app/node_modules ./node_modules
+COPY --chown=node:node package*.json ./
+COPY --chown=node:node src ./src
 
 EXPOSE 8080
 
-ENV PORT=8080 \
-    GIN_MODE=release
-
-ENTRYPOINT ["/app/polling-backend"]
+CMD ["node", "src/server.js"]

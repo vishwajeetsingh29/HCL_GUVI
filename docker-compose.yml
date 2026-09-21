@@ -38,7 +38,7 @@ services:
       retries: 5
       start_period: 5s
 
-  # 3. Go Gin API & WebSocket Hub Service
+  # 3. Node.js Express API & WebSocket Hub Service
   backend:
     build:
       context: ./backend
@@ -55,7 +55,7 @@ services:
       - REDIS_PASSWORD=
       - JWT_SECRET=pulse-poll-super-secure-jwt-key-for-auth
       - CORS_ORIGIN=*
-      - GIN_MODE=release
+      - NODE_ENV=production
     depends_on:
       mongodb:
         condition: service_healthy

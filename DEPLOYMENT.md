@@ -1,6 +1,6 @@
 # Production Deployment Strategy
 
-This guide details two proven deployment strategies to ship the entire PulsePoll stack (React frontend, Go Gin backend, MongoDB, and Redis Pub/Sub) to a **live, publicly reachable URL** with automatic HTTPS/TLS and WebSocket support.
+This guide details two proven deployment strategies to ship the entire PulsePoll stack (React frontend, Node.js Express backend, MongoDB, and Redis Pub/Sub) to a **live, publicly reachable URL** with automatic HTTPS/TLS and WebSocket support.
 
 ---
 
@@ -9,7 +9,7 @@ This guide details two proven deployment strategies to ship the entire PulsePoll
 | Component | Strategy A: Managed PaaS (Recommended) | Strategy B: Single Cloud VPS (Self-Hosted) |
 | :--- | :--- | :--- |
 | **Frontend** | Cloudflare Pages / Vercel / Render | Docker container behind Caddy Proxy |
-| **Backend** | Render / Fly.io / Railway (Docker Web Service) | Docker container on VPS |
+| **Backend** | Render / Fly.io / Railway (Docker or Node.js Web Service) | Docker container on VPS |
 | **MongoDB** | MongoDB Atlas (Free M0 or Dedicated) | MongoDB container with persistent volume |
 | **Redis Broker** | Upstash Redis or Redis Cloud | Redis container with persistent volume |
 | **TLS/SSL** | Managed automatically by PaaS (Cloudflare/Let's Encrypt) | Automatic HTTPS via Caddy server |
@@ -28,7 +28,7 @@ This strategy provides zero-downtime deployments, global CDN distribution, and m
 2. Create a free shared cluster (`M0 Sandbox` in your closest region).
 3. Under **Database Access**, create a user (e.g. `pulsepoll_user`) with a strong password.
 4. Under **Network Access**, add IP `0.0.0.0/0` (allow access from anywhere) or bind specifically to your PaaS outbound IPs.
-5. Click **Connect** -> **Drivers** (Go) to obtain the connection URI:
+5. Click **Connect** -> **Drivers** (Node.js) to obtain the connection URI:
    ```env
    MONGO_URI=mongodb+srv://pulsepoll_user:<password>@cluster0.abcde.mongodb.net/?retryWrites=true&w=majority
    MONGO_DB=polling_prod
@@ -45,20 +45,20 @@ This strategy provides zero-downtime deployments, global CDN distribution, and m
 
 ---
 
-### Step 2: Deploy Go Backend (Render / Railway / Fly.io)
+### Step 2: Deploy Node.js Backend (Render / Railway / Fly.io)
 
 Using **Render** as an example:
 1. Create a [Render](https://render.com) account and click **New +** -> **Web Service**.
 2. Connect your Git repository.
 3. Configure the service:
    - **Root Directory**: `backend`
-   - **Environment**: `Docker`
+   - **Environment**: `Docker` (or `Node`)
    - **Region**: Same region as your MongoDB Atlas cluster (e.g. `Oregon (US West)` or `Frankfurt (EU)`)
    - **Plan**: Free or Starter ($7/mo)
 4. Set Environment Variables in Render Dashboard:
    ```env
    PORT=8080
-   GIN_MODE=release
+   NODE_ENV=production
    MONGO_URI=mongodb+srv://pulsepoll_user:<password>@cluster0.abcde.mongodb.net/?retryWrites=true&w=majority
    MONGO_DB=polling_prod
    REDIS_ADDR=us1-flowing-parrot-12345.upstash.io:6379
@@ -66,7 +66,7 @@ Using **Render** as an example:
    JWT_SECRET=use-a-random-64-character-production-secret-key-here
    CORS_ORIGIN=https://pulsepoll.yourdomain.com
    ```
-5. Click **Create Web Service**. Render will build the Go Docker image, deploy it, and provide a live public HTTPS URL:
+5. Click **Create Web Service**. Render will build the Node.js Docker image, deploy it, and provide a live public HTTPS URL:
    - Example: `https://pulsepoll-api.onrender.com`
    - WebSocket URL automatically available at `wss://pulsepoll-api.onrender.com/ws/polls/:id`
 
@@ -116,12 +116,12 @@ cd /opt/pulsepoll
 Create a production `Caddyfile` for automated TLS:
 ```caddy
 poll.yourdomain.com {
-    # Reverse proxy REST API calls to Go backend container
+    # Reverse proxy REST API calls to Node.js backend container
     handle /api/* {
         reverse_proxy backend:8080
     }
 
-    # Reverse proxy WebSocket streaming connections to Go WebSocket hub
+    # Reverse proxy WebSocket streaming connections to Node.js WebSocket hub
     handle /ws/* {
         reverse_proxy backend:8080
     }
